@@ -11,12 +11,27 @@ const int FPS_LIMIT = 30;
 using Point2D = sf::Vector2f;
 
 // TODO: (Part 1) Define a function that samples a cubic Bezier curve at t in [0, 1].
-Point2D getPoint(const std::vector<sf::Vector2f>& pts, float t) { return Point2D{}; }
+
+Point2D getPoint(const std::vector<sf::Vector2f>& pts, float t) {
+    float u = 1.f - t;
+    // weights for each control point
+    float w0 = u * u * u;
+    float w1 = 3.f * u * u * t;
+    float w2 = 3.f * u * t * t;
+    float w3 = t * t * t;
+    return pts[0] * w0 + pts[1] * w1 + pts[2] * w2 + pts[3] * w3;
+}
 
 // TODO: (Part 2) Define a function that returns the curve's slope at t in [0, 1].
 Point2D getSlope(const std::vector<sf::Vector2f>& pts, float t) { return Point2D{}; }
 
 // TODO: (Part 1) Store four control points for the curve.
+std::vector<sf::Vector2f> points = {
+    {100.f, 600.f},  // P0 
+    {250.f, 150.f},  // P1
+    {550.f, 150.f},  // P2 
+    {700.f, 600.f}   // P3
+};
 // TODO: (Part 2) Track animation time for the square moving along the curve.
 // TODO: (Part 3) Track the index of the control point being dragged.
 
@@ -44,16 +59,33 @@ void handleInput(sf::Window& window, bool& shouldQuit) {
 
 void render(sf::RenderWindow& window) {
     window.clear(sf::Color::Black);
+    
     // ====== ====== ======
     // TODO: (Part 1) Sample GetPoint over t in [0, 1] and connect samples using the line-drawing
     // code from your project. Draw all four control points as circles after drawing the curve.
     // ====== ====== ======
+    const int SAMPLES = 50;
+    sf::VertexArray curve(sf::PrimitiveType::LineStrip);
 
+    for (int i = 0; i <= SAMPLES; ++i) {
+        float t = static_cast<float>(i) / SAMPLES;
+        Point2D p = getPoint(points, t);
+        curve.append(sf::Vertex{p, sf::Color::White});
+    }
+
+    window.draw(curve);
+    const float RADIUS = 6.f;
+    for (const auto& p : points) {
+        sf::CircleShape c(RADIUS);
+        c.setOrigin({RADIUS, RADIUS});
+        c.setFillColor(sf::Color::Red);
+        c.setPosition(p);
+        window.draw(c);
+    }
     // ====== ====== ======
     // TODO: (Part 2) Draw a small square moving repeatedly along the curve.
     // Use GetSlope to orient it to the curve at each time step.
     // ====== ====== ======
-
     // ====== ====== ======
     // TODO: (Part 3) Draw control handles from point 1 to 2 and point 3 to 4.
     // TODO: (Part 4) Draw all connected cubic Bezier segments and their handles.
@@ -73,6 +105,7 @@ int main() {
     try {
         // Initialize window
         window.create(sf::VideoMode({WINDOW_WIDTH, WINDOW_HEIGHT}), "Bezier Curve Editor");
+        window.setPosition({100, 50});
         window.setFramerateLimit(FPS_LIMIT);
         // Prevent key repeats.
         window.setKeyRepeatEnabled(false);
