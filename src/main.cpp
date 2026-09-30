@@ -83,6 +83,14 @@ void render(sf::RenderWindow& window) {
     }
 
     window.draw(curve);
+
+    // TODO: (Part 3) Draw control handles from point 1 to 2 and point 3 to 4.
+    sf::VertexArray handles(sf::PrimitiveType::Lines);
+    handles.append(sf::Vertex{points[0], sf::Color::Yellow});
+    handles.append(sf::Vertex{points[1], sf::Color::Yellow});
+    handles.append(sf::Vertex{points[2], sf::Color::Yellow});
+    handles.append(sf::Vertex{points[3], sf::Color::Yellow});
+    window.draw(handles);
     const float RADIUS = 6.f;
     for (const auto& p : points) {
         sf::CircleShape c(RADIUS);
@@ -91,6 +99,7 @@ void render(sf::RenderWindow& window) {
         c.setPosition(p);
         window.draw(c);
     }
+    
     // ====== ====== ======
     // TODO: (Part 2) Draw a small square moving repeatedly along the curve.
     // Use GetSlope to orient it to the curve at each time step.
@@ -108,7 +117,7 @@ void render(sf::RenderWindow& window) {
     square.setRotation(sf::radians(angle));    
     window.draw(square);
     // ====== ====== ======
-    // TODO: (Part 3) Draw control handles from point 1 to 2 and point 3 to 4.
+
     // TODO: (Part 4) Draw all connected cubic Bezier segments and their handles.
     // ====== ====== ======
 
