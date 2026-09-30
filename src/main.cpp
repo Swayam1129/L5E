@@ -43,6 +43,7 @@ std::vector<sf::Vector2f> points = {
 // TODO: (Part 2) Track animation time for the square moving along the curve.
 float animT = 0.f;
 // TODO: (Part 3) Track the index of the control point being dragged.
+int dragIndex = -1;
 
 void handleInput(sf::Window& window, bool& shouldQuit) {
     while (const std::optional<sf::Event> event = window.pollEvent()) {
@@ -52,13 +53,32 @@ void handleInput(sf::Window& window, bool& shouldQuit) {
         } else if (const auto* mouse = event->getIf<sf::Event::MouseButtonPressed>()) {
             // TODO: (Part 3) On left-click, select the closest control point
             // using mouse->position and start dragging it.
+            if (mouse->button == sf::Mouse::Button::Left) {
+                sf::Vector2f m(mouse->position);        
+                float bestDist = 1e9f;                  
+                for (int i = 0; i < (int)points.size(); ++i) {
+                    float dx = m.x - points[i].x;
+                    float dy = m.y - points[i].y;
+                    float dist = std::sqrt(dx*dx + dy*dy);
+                    if (dist<bestDist) {
+                        bestDist = dist;
+                        dragIndex = i;
+                     }
+                 }
+            }
         } else if (const auto* mouse = event->getIf<sf::Event::MouseButtonReleased>()) {
             // TODO: (Part 3) On left-button release, stop dragging.
+            if (mouse->button == sf::Mouse::Button::Left) {
+                dragIndex = -1;
+             }
         } else if (const auto* mouse = event->getIf<sf::Event::MouseMoved>()) {
             // TODO: (Part 3) Move the selected control point to mouse->position.
-            // TODO: (Part 4) Maintain matching slopes at shared endpoints.
+            if ( dragIndex != -1){
+                points[dragIndex] = sf::Vector2f(mouse->position);
+            }            // TODO: (Part 4) Maintain matching slopes at shared endpoints.
             // When moving point 3, move point 5 without changing its distance
             // from point 4 (point numbers here start at 1).
+            
         } else if (const auto* key = event->getIf<sf::Event::KeyPressed>()) {
             // TODO: (Part 4) '+' adds three control points; '-' removes three,
             // keeping at least four points.
@@ -91,6 +111,7 @@ void render(sf::RenderWindow& window) {
     handles.append(sf::Vertex{points[2], sf::Color::Yellow});
     handles.append(sf::Vertex{points[3], sf::Color::Yellow});
     window.draw(handles);
+    
     const float RADIUS = 6.f;
     for (const auto& p : points) {
         sf::CircleShape c(RADIUS);
@@ -99,7 +120,7 @@ void render(sf::RenderWindow& window) {
         c.setPosition(p);
         window.draw(c);
     }
-    
+
     // ====== ====== ======
     // TODO: (Part 2) Draw a small square moving repeatedly along the curve.
     // Use GetSlope to orient it to the curve at each time step.
