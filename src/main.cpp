@@ -2,6 +2,7 @@
 #include <optional>
 #include <vector>
 #include <cmath>
+#include <algorithm>
 
 #include <SFML/Graphics.hpp>
 
@@ -54,8 +55,9 @@ void handleInput(sf::Window& window, bool& shouldQuit) {
             // TODO: (Part 3) On left-click, select the closest control point
             // using mouse->position and start dragging it.
             if (mouse->button == sf::Mouse::Button::Left) {
-                sf::Vector2f m(mouse->position);        
-                float bestDist = 1e9f;                  
+                sf::Vector2f m(mouse->position);   
+                dragIndex = -1;     
+                float bestDist = 15.f;                  
                 for (int i = 0; i < (int)points.size(); ++i) {
                     float dx = m.x - points[i].x;
                     float dy = m.y - points[i].y;
@@ -73,15 +75,60 @@ void handleInput(sf::Window& window, bool& shouldQuit) {
              }
         } else if (const auto* mouse = event->getIf<sf::Event::MouseMoved>()) {
             // TODO: (Part 3) Move the selected control point to mouse->position.
-            if ( dragIndex != -1){
+            if (dragIndex != -1) {
                 points[dragIndex] = sf::Vector2f(mouse->position);
-            }            // TODO: (Part 4) Maintain matching slopes at shared endpoints.
+
+                // (Part 4) keep the joint smooth: find the handle on the other side
+                int i = dragIndex;
+                int joint = -1, partner = -1;
+                if (i % 3 == 2 && i + 2 < (int)points.size()) {   // handle BEFORE a joint
+                    joint = i + 1;
+                    partner = i + 2;
+                } else if (i % 3 == 1 && i - 2 >= 0) {            // handle AFTER a joint
+                    joint = i - 1;
+                    partner = i - 2;
+                }
+
+                if (partner != -1) {
+                    sf::Vector2f dir = points[joint] - points[i];              // dragged -> joint
+                    float len = std::sqrt(dir.x * dir.x + dir.y * dir.y);
+                    sf::Vector2f old = points[partner] - points[joint];
+                    float dist = std::sqrt(old.x * old.x + old.y * old.y);     // partner's old distance
+                    if (len > 0.f) {
+                        points[partner] = points[joint] + (dir / len) * dist;  // same line, same distance
+                    }
+                }
+            }          
+            // TODO: (Part 4) Maintain matching slopes at shared endpoints.
             // When moving point 3, move point 5 without changing its distance
             // from point 4 (point numbers here start at 1).
             
         } else if (const auto* key = event->getIf<sf::Event::KeyPressed>()) {
             // TODO: (Part 4) '+' adds three control points; '-' removes three,
             // keeping at least four points.
+            if (key->code == sf::Keyboard::Key::Equal || key->code == sf::Keyboard::Key::Add) {
+                sf::Vector2f last = points[points.size() - 1];   
+                sf::Vector2f prev = points[points.size() - 2];   
+                sf::Vector2f center{WINDOW_WIDTH / 2.f, WINDOW_HEIGHT / 2.f};
+
+                sf::Vector2f a = last + (last - prev);    
+                sf::Vector2f c = center * 2.f - last;   
+                sf::Vector2f b = (a + c) / 2.f;           
+
+                // keep all three inside the window
+                for (sf::Vector2f* p : {&a, &b, &c}) {
+                    p->x = std::clamp(p->x, 20.f, WINDOW_WIDTH - 20.f);
+                    p->y = std::clamp(p->y, 20.f, WINDOW_HEIGHT - 20.f);
+                }
+                points.push_back(a);
+                points.push_back(b);
+                points.push_back(c);
+            } else if (key->code == sf::Keyboard::Key::Hyphen || key->code == sf::Keyboard::Key::Subtract) {
+                if (points.size() >= 7) {            
+                    points.resize(points.size() - 3);
+                    dragIndex = -1;                  
+                }
+            }
         }
     }
 }
@@ -96,20 +143,25 @@ void render(sf::RenderWindow& window) {
     const int SAMPLES = 50;
     sf::VertexArray curve(sf::PrimitiveType::LineStrip);
 
-    for (int i = 0; i <= SAMPLES; ++i) {
-        float t = static_cast<float>(i) / SAMPLES;
-        Point2D p = getPoint(points, t);
-        curve.append(sf::Vertex{p, sf::Color::White});
+    for (int s = 0; s + 3 < (int)points.size(); s += 3) {
+        // copy the 4 points for this curve
+        std::vector<sf::Vector2f> seg(points.begin() + s, points.begin() + s + 4);
+        for (int i = 0; i <= SAMPLES; ++i) {
+            float t = static_cast<float>(i) / SAMPLES;
+            Point2D p = getPoint(seg, t); 
+            curve.append(sf::Vertex{p, sf::Color::White});
+        }
     }
-
     window.draw(curve);
 
     // TODO: (Part 3) Draw control handles from point 1 to 2 and point 3 to 4.
     sf::VertexArray handles(sf::PrimitiveType::Lines);
-    handles.append(sf::Vertex{points[0], sf::Color::Yellow});
-    handles.append(sf::Vertex{points[1], sf::Color::Yellow});
-    handles.append(sf::Vertex{points[2], sf::Color::Yellow});
-    handles.append(sf::Vertex{points[3], sf::Color::Yellow});
+    for (int s = 0; s + 3 < (int)points.size(); s += 3) {
+    handles.append(sf::Vertex{points[s], sf::Color::Yellow});
+    handles.append(sf::Vertex{points[s+1], sf::Color::Yellow});
+    handles.append(sf::Vertex{points[s+2], sf::Color::Yellow});
+    handles.append(sf::Vertex{points[s+3], sf::Color::Yellow});
+    }
     window.draw(handles);
     
     const float RADIUS = 6.f;
@@ -125,15 +177,23 @@ void render(sf::RenderWindow& window) {
     // TODO: (Part 2) Draw a small square moving repeatedly along the curve.
     // Use GetSlope to orient it to the curve at each time step.
     // ====== ====== ======
+    int numCurves = ((int)points.size() - 1) / 3;   // 4 pts -> 1, 7 -> 2, 10 -> 3
     animT += 0.01f;
-    if (animT > 1.f) {
+    if (animT >= numCurves) {
         animT = 0.f;
     }
+
+    int curveIdx = (int)animT;              // which curve we're on
+    float localT = animT - curveIdx;        // how far along that curve (0 to 1)
+    std::vector<sf::Vector2f> seg(points.begin() + curveIdx * 3,
+                                  points.begin() + curveIdx * 3 + 4);
+                                  
+
     sf::RectangleShape square({20.f, 20.f});
     square.setOrigin({10.f, 10.f});        
     square.setFillColor(sf::Color::Green);
-    square.setPosition(getPoint(points, animT));
-    Point2D dir = getSlope(points, animT);      
+    square.setPosition(getPoint(seg, localT));
+    Point2D dir = getSlope(seg, localT);   
     float angle = std::atan2(dir.y, dir.x);     
     square.setRotation(sf::radians(angle));    
     window.draw(square);
