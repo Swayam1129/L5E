@@ -1,6 +1,7 @@
 #include <iostream>
 #include <optional>
 #include <vector>
+#include <cmath>
 
 #include <SFML/Graphics.hpp>
 
@@ -23,7 +24,14 @@ Point2D getPoint(const std::vector<sf::Vector2f>& pts, float t) {
 }
 
 // TODO: (Part 2) Define a function that returns the curve's slope at t in [0, 1].
-Point2D getSlope(const std::vector<sf::Vector2f>& pts, float t) { return Point2D{}; }
+Point2D getSlope(const std::vector<sf::Vector2f>& pts, float t) {
+    //B′(t) = 3(1−t)²·(P1−P0) + 6(1−t)t·(P2−P1) + 3t²·(P3−P2)
+    float u = 1.f - t;
+    float w0 = 3.f*u*u;
+    float w1 = 6.f*u*t;
+    float w2 = 3*t*t;
+    return w0*(pts[1]-pts[0]) + w1*(pts[2]-pts[1]) + w2*(pts[3]-pts[2])/* w0 * (P1 - P0) + ... */;    
+}
 
 // TODO: (Part 1) Store four control points for the curve.
 std::vector<sf::Vector2f> points = {
@@ -33,6 +41,7 @@ std::vector<sf::Vector2f> points = {
     {700.f, 600.f}   // P3
 };
 // TODO: (Part 2) Track animation time for the square moving along the curve.
+float animT = 0.f;
 // TODO: (Part 3) Track the index of the control point being dragged.
 
 void handleInput(sf::Window& window, bool& shouldQuit) {
@@ -86,6 +95,18 @@ void render(sf::RenderWindow& window) {
     // TODO: (Part 2) Draw a small square moving repeatedly along the curve.
     // Use GetSlope to orient it to the curve at each time step.
     // ====== ====== ======
+    animT += 0.01f;
+    if (animT > 1.f) {
+        animT = 0.f;
+    }
+    sf::RectangleShape square({20.f, 20.f});
+    square.setOrigin({10.f, 10.f});        
+    square.setFillColor(sf::Color::Green);
+    square.setPosition(getPoint(points, animT));
+    Point2D dir = getSlope(points, animT);      
+    float angle = std::atan2(dir.y, dir.x);     
+    square.setRotation(sf::radians(angle));    
+    window.draw(square);
     // ====== ====== ======
     // TODO: (Part 3) Draw control handles from point 1 to 2 and point 3 to 4.
     // TODO: (Part 4) Draw all connected cubic Bezier segments and their handles.
