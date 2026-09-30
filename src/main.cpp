@@ -10,6 +10,14 @@ const int WINDOW_WIDTH = 800;
 const int WINDOW_HEIGHT = 800;
 const int FPS_LIMIT = 30;
 
+// Bonus: the Galaga game screen, shown at half size (1:2) in the editor
+const float GAME_WIDTH = 800.f;    // window width
+const float GAME_HEIGHT = 800.f;   //  window height
+const float SCALE = 0.5f;          // 1:2 ratio
+const sf::Vector2f BOX_SIZE{GAME_WIDTH * SCALE, GAME_HEIGHT * SCALE};
+const sf::Vector2f BOX_POS{(WINDOW_WIDTH - BOX_SIZE.x) / 2.f,
+                           (WINDOW_HEIGHT - BOX_SIZE.y) / 2.f};   // centred
+
 using Point2D = sf::Vector2f;
 
 // TODO: (Part 1) Define a function that samples a cubic Bezier curve at t in [0, 1].
@@ -35,12 +43,16 @@ Point2D getSlope(const std::vector<sf::Vector2f>& pts, float t) {
 }
 
 // TODO: (Part 1) Store four control points for the curve.
-std::vector<sf::Vector2f> points = {
-    {100.f, 600.f},  // P0 
-    {250.f, 150.f},  // P1
-    {550.f, 150.f},  // P2 
-    {700.f, 600.f}   // P3
+// Bonus: a list of separate curves; each one is its own chain of points
+std::vector<std::vector<sf::Vector2f>> curves = {
+    {
+        {100.f, 600.f},  // P0
+        {250.f, 150.f},  // P1
+        {550.f, 150.f},  // P2
+        {700.f, 600.f}   // P3
+    }
 };
+int activeCurve = 0;   // which curve is editing
 // TODO: (Part 2) Track animation time for the square moving along the curve.
 float animT = 0.f;
 // TODO: (Part 3) Track the index of the control point being dragged.
@@ -48,6 +60,7 @@ int dragIndex = -1;
 
 void handleInput(sf::Window& window, bool& shouldQuit) {
     while (const std::optional<sf::Event> event = window.pollEvent()) {
+        auto& points = curves[activeCurve];
         if (event->is<sf::Event::Closed>()) {
             window.close();
             shouldQuit = true;
@@ -128,6 +141,30 @@ void handleInput(sf::Window& window, bool& shouldQuit) {
                     points.resize(points.size() - 3);
                     dragIndex = -1;                  
                 }
+            } else if (key->code == sf::Keyboard::Key::E) {
+                // Bonus: export points as C++ code, in game coordinates
+                std::cout << "std::vector<sf::Vector2f> path = {\n";
+                for (const auto& p : points) {
+                    sf::Vector2f g = (p - BOX_POS) / SCALE;   // editor -> game
+                    std::cout << "    {" << std::round(g.x) << ".f, " << std::round(g.y) << ".f},\n";
+                }
+                std::cout << "};\n";
+            } else if (key->code == sf::Keyboard::Key::N) {
+                // Bonus: start a new separate curve
+                curves.push_back({
+                    {150.f, 150.f},
+                    {300.f, 50.f},
+                    {500.f, 50.f},
+                    {650.f, 150.f}
+                });
+                activeCurve = (int)curves.size() - 1;   // switch to the new one
+                dragIndex = -1;
+                animT = 0.f;
+            } else if (key->code == sf::Keyboard::Key::Tab) {
+                // Bonus: switch to the next curve (wraps around)
+                activeCurve = (activeCurve + 1) % (int)curves.size();
+                dragIndex = -1;
+                animT = 0.f;
             }
         }
     }
@@ -135,7 +172,14 @@ void handleInput(sf::Window& window, bool& shouldQuit) {
 
 void render(sf::RenderWindow& window) {
     window.clear(sf::Color::Black);
-    
+    auto& points = curves[activeCurve];
+    //BONUS  
+    sf::RectangleShape gameBox(BOX_SIZE);
+    gameBox.setPosition(BOX_POS);
+    gameBox.setFillColor(sf::Color::Transparent);          // just an outline
+    gameBox.setOutlineColor(sf::Color(100, 100, 100));     // grey
+    gameBox.setOutlineThickness(2.f);
+    window.draw(gameBox);
     // ====== ====== ======
     // TODO: (Part 1) Sample GetPoint over t in [0, 1] and connect samples using the line-drawing
     // code from your project. Draw all four control points as circles after drawing the curve.
@@ -187,7 +231,7 @@ void render(sf::RenderWindow& window) {
     float localT = animT - curveIdx;        // how far along that curve (0 to 1)
     std::vector<sf::Vector2f> seg(points.begin() + curveIdx * 3,
                                   points.begin() + curveIdx * 3 + 4);
-                                  
+
 
     sf::RectangleShape square({20.f, 20.f});
     square.setOrigin({10.f, 10.f});        
@@ -214,6 +258,7 @@ int main() {
     sf::RenderWindow window;
 
     try {
+        std::cout << "Controls: drag = move point, +/- = add/remove curve, E = export\n";
         // Initialize window
         window.create(sf::VideoMode({WINDOW_WIDTH, WINDOW_HEIGHT}), "Bezier Curve Editor");
         window.setPosition({100, 50});
